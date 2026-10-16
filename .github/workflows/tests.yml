@@ -1,0 +1,59 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Run the tests
+        run: >
+          dotnet test --configuration Release --no-build
+          --logger "trx;LogFileName=results.trx"
+          --logger "console;verbosity=normal"
+          --results-directory test-results
+
+      - name: Convert the results to JUnit XML
+        if: always()
+        run: |
+          dotnet tool install --global trx2junit
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          trx2junit test-results/*.trx
+
+      - name: Publish the test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: test-results/*.xml
+          check_name: Test results
+
+      - name: Keep the raw results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results
+
+      - name: Check that the page data is exactly what the code produces
+        run: |
+          dotnet run --project src/QuietRun.Cli --configuration Release --no-build -- study --out "$RUNNER_TEMP/data.js"
+          diff -q docs/data.js "$RUNNER_TEMP/data.js"
+          dotnet run --project src/QuietRun.Cli --configuration Release --no-build -- tests test-results/results.trx --out "$RUNNER_TEMP/tests.js"
+          diff -q docs/tests.js "$RUNNER_TEMP/tests.js"

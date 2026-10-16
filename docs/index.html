@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How soon can software tell that an LC run has gone wrong?</title>
+<meta name="description" content="quiet-run: a run-health monitor for liquid chromatography runs, in C#. It gives every run a verdict (OK, LEAK, CLOG, AIR, DRIFT, QUIET) with a plain-English reason, tested on synthetic runs against fixed pressure limits. Bolgac Gulen, 2026.">
+<meta name="color-scheme" content="light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light;--paper:#faf9f7;--ink:#1a1d21;--soft:#5b6470;--faint:#8b95a1;--rule:#e2e0dc;--rule2:#c9c5be;--panel:#f3f1ed;--card:#fff;
+  --pos:#2f7d54;--neg:#b03a3a;--accent:#2c4a6b;--qr:#2a78d6;--fx:#eb6834;--miss:#efece7;
+  --serif:'Newsreader',Georgia,serif;--sans:'IBM Plex Sans',system-ui,sans-serif;--mono:'IBM Plex Mono',ui-monospace,monospace}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;padding-bottom:90px;overflow-x:hidden}
+a{color:var(--accent);text-decoration:none;font-weight:500}a:hover{text-decoration:underline}
+.wrap{max-width:960px;margin:0 auto;padding:0 16px}
+header{padding:28px 0 18px;border-bottom:1px solid var(--ink)}
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.16em;color:var(--faint);text-transform:uppercase}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(28px,4.6vw,44px);line-height:1.1;letter-spacing:-.01em;margin:10px 0 10px;max-width:820px;text-wrap:balance}
+.dek{max-width:760px;color:var(--soft);font-size:18px;font-family:var(--serif);line-height:1.5}
+.dek strong{color:var(--ink);font-weight:600}
+.byline{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--faint);display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.byline img{height:20px;display:block}
+section{padding:40px 0 6px}
+.sec-label{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+h2{font-family:var(--serif);font-weight:600;font-size:clamp(24px,3.4vw,29px);line-height:1.2;margin-bottom:10px;text-wrap:balance}
+p{margin-bottom:12px}
+.lede{color:var(--soft);max-width:760px;margin-bottom:16px}
+.lede strong,.lede em{color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:6px;padding:20px 22px;margin-top:16px}
+.card-title{font-family:var(--serif);font-size:20px;font-weight:600;margin-bottom:4px}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chips .lab{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-right:4px;min-width:62px}
+.chip{font-family:var(--mono);font-size:12px;padding:7px 12px;border:1px solid var(--rule2);border-radius:3px;background:var(--card);color:var(--soft);cursor:pointer;line-height:1.2}
+.chip:hover{color:var(--ink);border-color:var(--soft)}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper);font-weight:500}
+.chip small{display:block;font-size:10px;opacity:.8;margin-top:2px}
+.hint{font-size:12.5px;color:var(--faint);line-height:1.45;margin:8px 0 0}
+.viz{position:relative;margin-top:10px}.viz svg{width:100%;height:auto;display:block;overflow:visible}
+.viz text{font-family:var(--sans)}
+.legend{display:flex;gap:8px 18px;font-size:12.5px;color:var(--soft);margin:10px 0 0;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block}
+.legend i.dot{width:9px;height:9px;border-radius:50%}
+.legend i.ring{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--faint);background:var(--miss)}
+.legend i.dash{width:18px;height:0;border-top:2px dashed var(--ink)}
+.legend i.band{width:16px;height:10px;background:rgba(42,120,214,.16);border-top:1px dashed var(--qr)}
+.legend i.line{width:18px;height:0;border-top:2px solid}
+.three{font-size:13.5px;color:var(--soft);margin-top:12px;max-width:760px;line-height:1.55}
+.three b{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);margin-right:6px;font-weight:500}
+.three p{margin-bottom:6px}
+.verdict{margin-top:18px;padding:2px 0 2px 16px;border-left:3px solid var(--accent);font-size:15px;max-width:760px}
+.verdict.sting{border-left-color:var(--neg)}
+.verdict b{color:var(--ink)}
+.qlines{display:grid;grid-template-columns:1fr 1fr;gap:4px 26px;margin-top:20px;max-width:900px}
+.qlines div{border-top:1px solid var(--rule);padding:8px 0 6px;font-size:14.5px;line-height:1.5;color:var(--soft)}
+.qlines b{display:block;font-family:var(--serif);font-size:17px;color:var(--ink);font-weight:600;margin-bottom:1px}
+.qlines .hurt b{color:var(--neg)}
+@media (max-width:640px){.qlines{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);text-align:right;padding:0 0 8px;border-bottom:1px solid var(--rule);vertical-align:bottom}
+th:first-child{text-align:left}
+td{padding:8px 0;border-bottom:1px solid var(--rule);text-align:right;font-variant-numeric:tabular-nums;vertical-align:top}
+td:first-child{text-align:left}
+th+th,td+td{padding-left:14px}
+td.n{font-family:var(--mono)}
+td.z{color:var(--rule2)}
+td.diag{font-weight:600;color:var(--ink);background:#eef3fa}
+td.bad{color:var(--neg);font-weight:600}
+tr.ref td{background:var(--panel)}
+.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.note{font-size:12.5px;color:var(--faint);margin-top:10px;line-height:1.5}
+.small{font-size:14px;color:var(--soft)}
+.quote{font-family:var(--serif);font-size:17px;color:var(--ink);border-left:3px solid var(--rule2);padding:2px 0 2px 16px;margin:14px 0;max-width:760px}
+.quote small{display:block;font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:6px}
+.gloss{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px 24px;font-size:13.5px;color:var(--soft);margin-top:10px}
+.gloss b{color:var(--ink);font-family:var(--mono);font-size:12px;font-weight:500;display:block}
+ol.five{padding-left:20px;font-size:15px;color:var(--soft);line-height:1.6}
+ol.five li{margin-bottom:8px}ol.five b{color:var(--ink)}
+.readout{margin-top:14px;display:grid;gap:12px}
+.readout .who{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px}
+.readout .who.q{color:var(--qr)}.readout .who.f{color:#c4521f}
+.readout .what{font-size:15px;color:var(--ink);font-weight:600}
+.readout .why{font-size:14px;color:var(--soft);margin-top:2px}
+.readout .cellstat{font-size:13px;color:var(--soft);border-top:1px solid var(--rule);padding-top:8px}
+pre{font-family:var(--mono);font-size:12.5px;line-height:1.5;background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:12px 14px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;margin:10px 0}
+pre .cmd{color:var(--accent)}
+.steps{counter-reset:s;list-style:none;padding:0;max-width:760px}
+.steps li{counter-increment:s;position:relative;padding-left:34px;margin-bottom:12px;color:var(--soft)}
+.steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:50%;border:1px solid var(--rule2);font-family:var(--mono);font-size:11px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+.steps b{color:var(--ink)}
+.tests{columns:2 300px;column-gap:28px;font-size:13px;margin-top:10px}
+.tests .grp{break-inside:avoid;margin-bottom:12px}
+.tests .grp h4{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:500;margin-bottom:4px}
+.tests .t{display:flex;gap:8px;color:var(--soft);line-height:1.4;margin-bottom:3px}
+.tests .t i{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--pos);border:1px solid var(--pos);border-radius:3px;padding:0 4px;height:16px;line-height:14px;flex:none;margin-top:1px}
+.tests .t i.fail{color:var(--neg);border-color:var(--neg)}
+.disclose{font-size:13.5px;color:var(--soft);border-top:1px solid var(--rule);padding-top:10px;margin-top:16px;max-width:760px}
+.limits{margin-top:16px;border-left:3px solid var(--neg);padding:2px 0 2px 16px;max-width:760px}
+.limits p{font-size:14.5px;color:var(--soft)}
+.limits b{color:var(--ink)}
+ul.src{padding-left:18px;font-size:13.5px;color:var(--soft)}ul.src li{margin-bottom:6px}
+footer{border-top:1px solid var(--rule);margin-top:40px;padding:18px 0 30px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+#tour{position:absolute;top:0;left:0;right:0;z-index:50;display:none;pointer-events:none}
+#tour.on{display:block}
+.tour-hl{position:absolute;border:2px solid var(--accent);border-radius:8px;box-shadow:0 0 0 9999px rgba(26,29,33,.5);transition:all .35s ease;pointer-events:none}
+.tour-card{position:absolute;width:min(400px,calc(100vw - 32px));background:var(--card);border:1px solid var(--rule2);border-radius:8px;padding:16px 18px;box-shadow:0 6px 30px rgba(0,0,0,.18);pointer-events:auto}
+.tour-card .tk{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.tour-card p{font-size:14px;line-height:1.55;color:var(--ink);margin:0 0 12px}
+.tour-nav{display:flex;align-items:center;gap:8px}
+.tour-nav .dots{flex:1;display:flex;gap:5px}
+.tour-nav .dots i{width:6px;height:6px;border-radius:50%;background:var(--rule2)}
+.tour-nav .dots i.on{background:var(--accent)}
+.tour-btn{font-family:var(--mono);font-size:12px;padding:7px 12px;border-radius:4px;border:1px solid var(--rule2);background:var(--card);color:var(--soft);cursor:pointer}
+.tour-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.tour-open{font-family:var(--mono);font-size:12px;padding:6px 12px;border-radius:4px;border:1px solid var(--accent);background:var(--card);color:var(--accent);cursor:pointer}
+.tour-open:hover{background:var(--accent);color:#fff}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}html{scroll-behavior:auto}}
+@media (max-width:480px){.card{padding:16px 14px}.dek{font-size:17px}.chip{padding:7px 9px}
+  table{font-size:12.5px}th{font-size:9px;letter-spacing:.03em}th+th,td+td{padding-left:7px}
+  .chips .lab{flex-basis:100%;margin:0}.chip{font-size:11.5px;padding:6px 8px}.chip small{font-size:9.5px}}
+td.n{white-space:nowrap}
+.viz text.halo{paint-order:stroke;stroke:#fff;stroke-width:3.5px;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<div id="tour"><div class="tour-hl"></div><div class="tour-card"></div></div>
+
+<header><div class="wrap">
+  <div class="eyebrow">A working C# tool and a synthetic study &middot; October 2026</div>
+  <h1>How soon can software tell that an LC run has gone wrong?</h1>
+  <p class="dek" id="dek">Loading the study.</p>
+  <div class="byline">
+    <span>Bolga&ccedil; G&uuml;len</span>
+    <a href="https://github.com/bolgacg/quiet-run">github.com/bolgacg/quiet-run</a>
+    <a href="https://github.com/bolgacg/quiet-run/actions/workflows/tests.yml"><img src="https://github.com/bolgacg/quiet-run/actions/workflows/tests.yml/badge.svg" alt="Test status from GitHub Actions"></a>
+    <button class="tour-open" id="tourbtn">Walk me through it</button>
+  </div>
+</div></header>
+
+<section id="bluf" style="padding-top:18px"><div class="wrap">
+  <div class="card" id="blufcard" style="margin-top:0">
+   <div id="blufmain">
+    <div class="sec-label">The answer first</div>
+    <div class="card-title">When each synthetic fault was first flagged</div>
+    <p class="hint" style="margin:0 0 10px">quiet-run against fixed pressure limits, one dot per run. Further left is
+    sooner; the grey column is never.</p>
+    <div class="chips" id="setchips" role="group" aria-label="Detector setting"><span class="lab">Setting</span></div>
+    <p class="hint">Click a setting; the counts and the false-alarm bars change with it.</p>
+    <div class="viz" id="blufviz"></div>
+   </div>
+    <div class="viz" id="blufviz2" style="margin-top:4px"></div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--qr)"></i>quiet-run, one dot per run</span>
+      <span><i class="dot" style="background:var(--fx)"></i>fixed pressure limits, one dot per run</span>
+      <span><i class="ring"></i>not flagged</span>
+      <span><i class="dash"></i>doing nothing: seen when the run (or batch) ends</span>
+    </div>
+  </div>
+  <div class="three">
+    <p><b>What you see</b><span data-v="faults"></span> synthetic runs, <span data-v="perKind"></span> per kind of fault, each checked twice: by quiet-run (blue rows) and by
+      a fixed high and low pressure limit (orange rows), the check a pump would otherwise rely on.</p>
+    <p><b>How to read it</b>A dot's position is the time from the fault starting to the first alarm. The dashed line is
+      doing nothing: the fault is seen when the run is over and someone opens the trace (for drift, when the batch of
+      <span data-v="sequenceRuns"></span> runs is over). The short black tick in each row is the median of the flagged dots.</p>
+    <p id="bluftake"><b>What to take from it</b></p>
+  </div>
+  <div class="qlines" id="qlines"></div>
+  <p class="hint">Every number above is computed in your browser from the study file the C# tool wrote. Everything below
+  explains what was simulated, shows single runs, and lists where quiet-run fails.</p>
+</div></section>
+
+<section id="primer"><div class="wrap">
+  <div class="sec-label">Before anything else</div>
+  <h2>Five things to know</h2>
+  <p class="lede">This page is about the pump pressure of a liquid chromatography run. Here is what that is, in five
+  sentences, so nothing after this assumes you have seen one.</p>
+  <div class="card">
+    <ol class="five">
+      <li><b>Liquid chromatography (LC)</b> pushes a dissolved sample through a thin packed tube, the
+        <b>column</b>, so the peptides in it come out one after another into a mass spectrometer that weighs them.
+        Evosep builds the instruments that do this step for proteomics.</li>
+      <li>A pump drives the liquid at a set flow. The <b>pressure</b> it needs depends on the column and on the liquid's
+        mix, which changes along the run (the <b>gradient</b>), so a healthy run has a pressure shape of its own. The 2018
+        paper that introduced the Evosep One recorded that shape for each of 1,500 runs to show the column stayed clean.</li>
+      <li>Faults change the shape in different ways. A <b>leak</b> lowers it, a <b>clog</b> raises it, <b>air</b> in the
+        pump makes it twitch, and a column that slowly fouls lifts it a little more every run, which I call
+        <b>drift</b>.</li>
+      <li>Some faults leave the pressure alone. If the control software hangs on a step, the pump keeps pumping, the
+        heartbeat keeps arriving and the status says Running, but the method stops moving. I call that <b>quiet</b>,
+        and catching it needs a check on progress, not on presence.</li>
+      <li><b>Everything here is synthetic.</b> The run length is a public method, 60 samples per day: a 21-minute gradient
+        plus about 3 minutes between injections (Bache et al. 2018). The pressure shape, the noise and the faults are
+        invented, and pressure is an index where 100 is the healthy average for the method.</li>
+    </ol>
+  </div>
+
+  <div class="card" id="domain">
+    <div class="card-title">Where each fault happens, and what quiet-run reads</div>
+    <p class="hint" style="margin-top:0">A generic LC flow path, simplified. It is not Evosep's design.</p>
+    <div class="viz" id="domainviz"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Terms, in the order they appear</div>
+    <div class="gloss">
+      <div><b>pressure index</b> Pump pressure divided by the healthy average for the method, times 100. A leak that
+        costs <span data-v="leak3pct"></span> percent of pressure moves it from about 100 to about <span data-v="leak3left"></span>.</div>
+      <div><b>fixed limits</b> One low and one high pressure value for the whole run. If the pressure stays past either
+        for <span data-v="fixedDebounceS"></span> seconds, the alarm trips. They are set from healthy runs as tightly as those runs allow.</div>
+      <div><b>envelope</b> What a healthy run of this method shows at each point of the method, learned from <span data-v="trainingRuns"></span>
+        healthy runs. quiet-run compares the pressure with the envelope at the same point, not with one number for the
+        whole run.</div>
+      <div><b>method clock</b> How far through its method the instrument says it is. A healthy run's clock moves every
+        second except for short planned pauses.</div>
+      <div><b>heartbeat</b> A counter the instrument increments while it is alive. It proves presence, not progress.</div>
+      <div><b>time to flag</b> Time from the moment the fault began to the first alarm. For drift it is counted in
+        runs.</div>
+      <div><b>false alarm</b> An alarm on a healthy run. The study has <span data-v="healthyRuns"></span> healthy runs to count them on.</div>
+      <div><b>setting</b> How strict quiet-run's rules are. Relaxed, chosen and sensitive were fixed before the study
+        first ran.</div>
+    </div>
+  </div>
+  <p class="small" style="margin-top:16px;max-width:760px">With those terms in hand, the next question is whether this
+  problem belongs to Evosep's software team at all.</p>
+</div></section>
+
+<section id="words"><div class="wrap">
+  <div class="sec-label">Their words</div>
+  <h2>Why a run-health monitor, for this team</h2>
+  <p class="lede">This section matters because the demo should answer a question Evosep is already asking, not one I
+  made up. The software team's own advertisement names the work.</p>
+  <div class="quote">"Design and develop software solutions that support both current and next-generation Evosep
+    technologies, including software for instrument control, internal production support systems etc."
+    <small>Evosep, Software Developer advertisement, October 2026</small></div>
+  <div class="quote">"... the freedom to explore modern approaches such as AI-assisted and agentic development."
+    <small>Same advertisement</small></div>
+  <p class="small" style="max-width:760px">People do read these traces. Bache et al. (2018) recorded the pressure
+  profile of every run in a 1,500-run test and showed that profiles of adjacent runs were "virtually
+  indistinguishable". A third-party tool on GitHub, <a href="https://github.com/jjjotto/EvoSep_Data_Traces">jjjotto/EvoSep_Data_Traces</a>,
+  lets Eno users plot pressure, flow rate and pump speed from their run folders. quiet-run asks the question a person
+  looking at those plots asks, during the run rather than after it: is this run still healthy, and if not, why?</p>
+</div></section>
+
+<section id="act1"><div class="wrap">
+  <div class="sec-label">Act one &middot; one run at a time</div>
+  <h2>See the moment a fault was flagged, and the reason given</h2>
+  <p class="lede">This act matters because a verdict is only useful if a person can check it against the trace in a few
+  seconds. Pick a fault and a severity. The page shows the run the study picked as typical for that cell: the median
+  catch when most runs were caught, the first miss when most were missed.</p>
+  <div class="card" id="excard">
+   <div id="exmain">
+    <div class="chips" id="kindchips" role="group" aria-label="Fault"><span class="lab">Fault</span></div>
+    <div class="chips" id="sevchips" role="group" aria-label="Severity" style="margin-top:8px"><span class="lab">Severity</span></div>
+    <p class="hint" id="sevhint">Click a fault, then a severity.</p>
+    <div class="viz" id="exviz"></div>
+   </div>
+    <div class="legend" id="exlegend">
+      <span><i class="line" style="border-color:var(--ink)"></i>pump pressure, once a second</span>
+      <span><i class="band"></i>quiet-run's envelope at this setting</span>
+      <span><i class="line" style="border-color:var(--fx);border-top-style:dashed"></i>fixed limits</span>
+    </div>
+    <div class="readout" id="readout"></div>
+  </div>
+  <div class="three">
+    <p><b>What you see</b>The pump pressure of one synthetic run over its <span data-v="runMinutes"></span> minutes, with the band quiet-run expects at
+      each point of the method and the two fixed limits. Under it, the method clock, which should climb every second.</p>
+    <p><b>How to read it</b>The grey line marks where the fault began. A blue line marks quiet-run's first alarm, an
+      orange line the fixed limits' first alarm. No line means no alarm.</p>
+    <p><b>What to take from it</b>The envelope follows the shape of the method, so a few percent off the shape stands
+      out. A fixed limit has to clear the whole shape, so it waits until the fault is large or the shape dips toward
+      it.</p>
+  </div>
+  <div class="verdict" id="act1verdict"></div>
+  <p class="small" style="margin-top:14px;max-width:760px">An alarm is only half the job; the person reading it also
+  needs the right name for it. The next act counts how often quiet-run gave the right one.</p>
+</div></section>
+
+<section id="act2"><div class="wrap">
+  <div class="sec-label">Act two &middot; the names it gives</div>
+  <h2>Did it call each fault by its right name?</h2>
+  <p class="lede">This act matters because the name decides what a person does next: tighten a fitting, change a
+  column, purge the pump or restart the method. Each row is a kind of injected fault; each column is the first verdict
+  quiet-run gave after the fault began, at the setting chosen above.</p>
+  <div class="card" id="confcard">
+    <div class="tscroll"><table id="conftable"></table></div>
+    <p class="note" id="confnote"></p>
+  </div>
+  <div class="verdict sting" id="act2verdict"></div>
+  <p class="small" style="margin-top:14px;max-width:760px">Every rule has a strictness, and strictness costs false
+  alarms. The next section puts the three settings side by side with the fixed limits.</p>
+</div></section>
+
+<section id="fails"><div class="wrap">
+  <div class="sec-label">Where it fails</div>
+  <h2>What each setting catches, and what it costs</h2>
+  <p class="lede">This section matters because a monitor that alarms too often gets switched off. The row to compare
+  against is the fixed limits, which need no software at all.</p>
+  <div class="card" id="modelcard">
+    <div class="card-title">What was learned, and what scored it</div>
+    <div class="gloss" id="modelgloss"></div>
+  </div>
+  <div class="card" id="tradecard">
+    <div class="tscroll"><table id="tradetable"></table></div>
+    <p class="note" id="tradenote"></p>
+  </div>
+  <div class="limits" id="limits"></div>
+  <p class="small" style="margin-top:14px;max-width:760px">Those are the study's limits. The last section is how the
+  tool was built, and why I trust the code that produced every number above.</p>
+</div></section>
+
+<section id="built"><div class="wrap">
+  <div id="builthead">
+  <div class="sec-label">How I built it</div>
+  <h2>Rules and tests first, then the code</h2>
+  <p class="lede">This section matters because the advertisement asks for AI-assisted and agentic development, and this
+  is how I do it on real work.</p>
+  </div>
+  <div class="card" id="buildcard">
+    <ol class="steps">
+      <li><b>I do not write C# by hand.</b> I build with coding agents, the way I would use a compiler, and I read and
+        debug everything they produce.</li>
+      <li><b>I wrote the rules first</b>, in plain English, one per fault: what the pump would show, and what the
+        reason should say to the person at the instrument. The quiet rule comes from <a href="https://bolgacg.github.io/quiet-machine/">my own monitoring
+        work</a>, where a recorder once wrote empty files for twenty hours while every presence check passed.</li>
+      <li><b>For each rule I wrote down what a test must prove</b>: the fault is flagged with the right name within a
+        time limit, a healthy run stays OK, and the same run is not flagged when that rule is switched off. A test that
+        passes without its rule proves nothing.</li>
+      <li><b>Agents wrote the C# against those tests, and I read it.</b> The tests caught two real problems during the
+        build. A fast leak was first called AIR, because its ramp crossed the spike threshold several times; the AIR
+        rule now ends a swing only when it falls back under half the threshold. A drift test claimed more than the
+        design delivers once runs carry random offsets; it now tests a clean trend, and the noisy case is measured in
+        the study instead.</li>
+      <li><b>The three settings were fixed before the study first ran</b> and have not changed since, so the numbers
+        above are not tuned to themselves.</li>
+    </ol>
+    <p class="small" style="max-width:760px">The tests are what make me trust it. They run on every push in GitHub
+    Actions, which also rebuilds this page's data from the code and fails if it differs from what is published. The
+    workflow turns the .NET results into JUnit XML with trx2junit, the converter Evosep's own GitHub account keeps a
+    fork of.</p>
+    <div id="testlist"></div>
+    <div class="card-title" style="margin-top:18px">What the tool prints</div>
+    <p class="small">The command-line tool reads a trace as CSV, one row per second, and prints a verdict per run. This
+    is its output for the typical <span data-v="leak3pct"></span> percent leak from act one, generated by the study, not typed:</p>
+    <pre id="cliout"></pre>
+    <p class="disclose">Claude, an AI model made by Anthropic, helped write the code. The design decisions are mine.</p>
+  </div>
+</div></section>
+
+<section id="sources"><div class="wrap">
+  <div class="sec-label">Sources</div>
+  <h2>What is cited, and what is invented</h2>
+  <ul class="src">
+    <li>Bache N, Geyer PE, Bekker-Jensen DB, et al. A Novel LC System Embeds Analytes in Pre-formed Gradients for Rapid,
+      Ultra-robust Proteomics. <i>Molecular &amp; Cellular Proteomics</i> 17(11):2284 to 2296, 2018.
+      <a href="https://doi.org/10.1074/mcp.TIR118.000853">doi:10.1074/mcp.TIR118.000853</a>. Used for: the 21-minute
+      gradient plus about 3 minutes between injections, 60 samples per day, and that pressure profiles are recorded per
+      run.</li>
+    <li>Evosep ApS, Software Developer advertisement, read 16 October 2026,
+      <a href="https://evosepaps.hr-on.com/show-job/357694&amp;locale=en_US">evosepaps.hr-on.com</a>. Quoted above.</li>
+    <li>jjjotto/EvoSep_Data_Traces on GitHub, a third-party trace viewer. Used only for the public fact, from its
+      README, that users plot pressure, flow rate and pump speed. No code or data from it is used here.</li>
+    <li>Page ES. Continuous inspection schemes. <i>Biometrika</i> 41:100 to 115, 1954. The cumulative sum behind the
+      drift rule.</li>
+    <li><b>Invented for this page:</b> the pressure shape, its noise and run-to-run spread, the fault shapes and sizes,
+      the planned pauses of the method clock, and the fixed limits' margin. All of it is in
+      <a href="https://github.com/bolgacg/quiet-run/blob/main/src/QuietRun/Simulator.cs">Simulator.cs</a> and
+      <a href="https://github.com/bolgacg/quiet-run/blob/main/src/QuietRun/FixedLimits.cs">FixedLimits.cs</a>.</li>
+  </ul>
+</div></section>
+
+<footer><div class="wrap">
+  <span id="footnote">Every number on this page is generated by quiet-run's study command from the synthetic runs it
+  creates; none is typed.</span>
+  <span>Bolga&ccedil; G&uuml;len &middot; 2026 &middot; MIT licence</span>
+</div></footer>
+
+<script src="data.js"></script>
+<script src="tests.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
