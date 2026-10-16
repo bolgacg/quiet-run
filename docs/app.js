@@ -556,7 +556,7 @@
     var bins = E.expected.length;
     $('#modelgloss').innerHTML =
       '<div><b>what it is</b>An expected pressure for each of ' + bins + ' slices of ' + E.binSeconds + ' s along the method, and three spreads: how far the smoothed pressure strays (' +
-        E.levelSigmaPct.toFixed(2) + '%), how far one second strays from its neighbours (' + E.spikeSigmaPct.toFixed(2) + '%), and how far one run\'s median strays from the next run\'s (' + E.runSigmaPct.toFixed(2) + '%).</div>' +
+        E.levelSigmaPct.toFixed(2) + '%), how far one second strays from its neighbours (' + E.spikeSigmaPct.toFixed(2) + '%), and how far one whole run\'s median strays from the average run\'s (' + E.runSigmaPct.toFixed(2) + '%).</div>' +
       '<div><b>what it predicts</b>Nothing about the future. It says what a healthy run of this method shows at each point, and the rules compare each second of a new run with it.</div>' +
       '<div><b>fitted on</b>' + M.trainingRuns + ' healthy synthetic runs and nothing else. The fixed limits were learned from the same ' + M.trainingRuns + ' runs, so both checks start from the same data.</div>' +
       '<div><b>scored on</b>' + D.healthy.runs + ' healthy runs and ' + cho.faults + ' runs with faults, generated separately from their own seeds. None of them was used to learn the envelope or to choose the settings, so no number here is tuned to itself.</div>' +
