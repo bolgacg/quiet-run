@@ -238,7 +238,7 @@
       tag(X(150), 198, 'AIR', 'gas bubbles in the pump');
       tag(X(330), 198, 'LEAK', 'a fitting lets liquid out', 'start');
       tag(X(370), 216, 'CLOG, DRIFT', 'the column narrows, fast or slowly');
-      text(svg, X(10), 224, 'quiet-run reads every one of these once a second', { 'font-size': 10.5, fill: C.faint });
+      text(svg, X(10), 224, 'quiet-run reads every one of these, with its timestamp', { 'font-size': 10.5, fill: C.faint });
       if (W < 700) { /* keep tags from crowding at mid widths */ }
     } else {
       var H2 = 330; svg = newSvg(host, W, H2);
@@ -571,9 +571,12 @@
     var lim = D.limits, lowest = Math.min.apply(null, D.envelope.expected), highest = Math.max.apply(null, D.envelope.expected);
     $('#limits').innerHTML =
       '<p><b>Everything is synthetic.</b> The faults are shaped the way I expect them to look. A real leak or bubble will be messier, and a real instrument will have faults I did not imagine. The next test is real traces, which I do not have.</p>' +
+      '<p><b>The pressure shape is invented.</b> It is an index I made up: one rise and fall over ' + Math.round(D.meta.runSeconds / 60) + ' minutes, averaging 100. It is not Evosep\'s gradient, and it is not the pressure profile of loading an Evotip, the disposable tip a sample arrives on.</p>' +
+      '<p><b>The tests prove the code matches its own model.</b> The simulator and the tests come from the same author: me, and the agents I direct. A passing test shows the rules catch faults as I modelled them. It says nothing about how they behave on a real instrument.</p>' +
       '<p><b>Small leaks get past it.</b> The chosen setting flags ' + cho.smallLeak + ' of ' + cho.smallLeakN + ' two-percent leaks, because it waits for pressure to sit ' + set.levelPct.toFixed(1) +
       '% off the envelope, and healthy runs here differ from each other by about ' + D.envelope.runSigmaPct.toFixed(1) + '%. Comparing each run with its own first minutes would be a tighter reference. I have not built it, and it would miss a fault present from the first second.</p>' +
       '<p><b>Stalls under ' + set.quietS + ' seconds are ignored on purpose.</b> Healthy runs here pause their method clock for up to ' + D.meta.pauseMaxS + ' seconds, and the chosen setting leaves room above that.</p>' +
+      '<p><b>QUIET may not apply as written to a pre-formed gradient.</b> The rule watches a method clock that should move every second. The Evosep One forms its gradient before the separation and then pushes it through the column (Bache et al. 2018), so its software may report progress in another way, and I do not know what it reports. The rule would have to be rewritten against that signal.</p>' +
       '<p><b>The envelope belongs to one method.</b> It was learned from ' + D.meta.trainingRuns + ' healthy runs of one invented method. A new column, method or instrument needs its own healthy runs first.</p>' +
       '<p><b>The fixed limits were set kindly.</b> They sit ' + D.meta.fixedMarginIndex + ' index points outside the most extreme healthy pressure seen in training (' + lim.low.toFixed(1) + ' and ' + lim.high.toFixed(1) +
       ', around an expected range of ' + lowest.toFixed(1) + ' to ' + highest.toFixed(1) + '), which is tighter than most real setups and makes them faster here than usual. The same tightness is why they flagged ' + cho.healthyFx + ' of ' + cho.healthyN + ' healthy runs.</p>';
@@ -597,7 +600,7 @@
   /* ---------- how I built it ---------- */
   function renderTests() {
     if (!TT) return;
-    var label = { LeakTests: 'LEAK', ClogTests: 'CLOG', AirTests: 'AIR', QuietTests: 'QUIET', DriftTests: 'DRIFT', HealthyTests: 'OK, healthy runs', EnvelopeTests: 'Envelope and fixed limits', CsvAndSimulatorTests: 'CSV, JSON and the simulator' };
+    var label = { LeakTests: 'LEAK', ClogTests: 'CLOG', AirTests: 'AIR', QuietTests: 'QUIET', DriftTests: 'DRIFT', HealthyTests: 'OK, healthy runs', TimingTests: 'Timing: jitter, lost readings, gaps', CompositionTests: 'Rules and sample sources', WindowTests: 'Ring buffer and time window', EnvelopeTests: 'Envelope and fixed limits', CsvAndSimulatorTests: 'CSV, JSON and the simulator' };
     var groups = {}, order = [];
     TT.tests.forEach(function (t) { if (!groups[t.cls]) { groups[t.cls] = []; order.push(t.cls); } groups[t.cls].push(t); });
     var h = '<div class="card-title" style="margin-top:18px">The ' + TT.total + ' tests</div><p class="small">' + TT.passed + ' of ' + TT.total +
@@ -633,11 +636,11 @@
       { sel: 'header h1', k: 'The question', html: 'This page asks how soon software can tell that a liquid chromatography run has gone wrong. <b>quiet-run</b> is the C# tool built to answer it. Every run it is scored on here is synthetic.' },
       { sel: '#blufmain', k: 'The answer', html: 'The whole result. Each dot is a run with one injected fault: further left is flagged sooner, grey is never. Drift and false alarms are just below. <b>Click a setting</b> to see what a stricter quiet-run catches and costs.' },
       { sel: '#qlines', k: 'In four sentences', html: 'The same result as four questions with one answer each. The two in red are where quiet-run fails or costs something.' },
-      { sel: '#domain', k: 'The faults', html: 'Where each of the five faults happens in a simplified flow path, and what quiet-run reads from the instrument once a second.' },
+      { sel: '#domain', k: 'The faults', html: 'Where each of the five faults happens in a simplified flow path, and what quiet-run reads from the instrument with each reading.' },
       { sel: '#exmain', k: 'One run', html: 'One run at a time. <b>Click a fault and a severity</b>, then check the blue alarm line and its reason against the trace. Try QUIET: the pressure looks normal and the method clock goes flat.' },
       { sel: '#confcard', k: 'The names', html: 'Whether quiet-run gave each fault its right name. Shaded cells are right; red cells are misses or false alarms.' },
       { sel: '#tradecard', k: 'The cost', html: 'What each setting catches and what it costs, next to the fixed limits. The limits under the table say where the whole exercise stops.' },
-      { sel: '#builthead', k: 'How it was built', html: 'Rules and tests first, then code written by coding agents and read by me. Below it are the test list, generated from the last test run, and the command-line output, generated by the study.' }
+      { sel: '#builthead', k: 'How it was built', html: 'Rules and tests first, then code written by coding agents that I direct, read, run and debug. Below it are the test list, generated from the last test run, and the command-line output, generated by the study.' }
     ];
     STEPS.forEach(function (s, i) { s.k += ' · ' + (i + 1) + ' of ' + STEPS.length; });
     function place() {

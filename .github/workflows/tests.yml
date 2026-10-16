@@ -30,18 +30,11 @@ jobs:
           --logger "console;verbosity=normal"
           --results-directory test-results
 
-      - name: Convert the results to JUnit XML
-        if: always()
-        run: |
-          dotnet tool install --global trx2junit
-          export PATH="$PATH:$HOME/.dotnet/tools"
-          trx2junit test-results/*.trx
-
       - name: Publish the test results
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: test-results/*.xml
+          files: test-results/*.trx
           check_name: Test results
 
       - name: Keep the raw results

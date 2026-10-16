@@ -2,8 +2,8 @@
 
 A run-health monitor for liquid chromatography (LC) runs, written in C# on .NET 8.
 
-It reads a run once a second (pump pressure, flow, instrument status, heartbeat and method clock) and gives
-every run a verdict with a plain-English reason:
+It reads a run one sample at a time (pump pressure, flow, instrument status, heartbeat and method clock, each
+with a timestamp) and gives every run a verdict with a plain-English reason:
 
 | Verdict | What the pump shows |
 |---|---|
@@ -20,7 +20,11 @@ and low pressure limit, on 500 synthetic faulty runs and 500 healthy ones, inclu
 **All data in this repository is synthetic.** The only public facts used are the run length (a 21-minute
 gradient, as in a 60 samples-per-day method; Bache et al., Molecular & Cellular Proteomics 17(11), 2018) and that
 LC instruments record a pressure profile per run. The pressure shape, noise and faults are invented, and pressure
-is an index where 100 is the healthy average for the method.
+is an index where 100 is the healthy average for the method. It is not Evosep's gradient or the pressure of loading
+an Evotip.
+
+The tests and the simulator have the same author, so passing tests show that the code matches its own model of a
+run, not that it works on a real instrument.
 
 ## Run it
 
@@ -37,7 +41,8 @@ one seed; running it twice writes the same file, and CI fails if the published `
 
 ## Trace format
 
-One CSV row per second:
+One CSV row per reading. The study writes one a second, but rows need not be evenly spaced: every rule measures
+time from `t_s`, which must increase from row to row.
 
 ```
 t_s,pressure,flow,status,heartbeat,method_s
@@ -58,7 +63,8 @@ heartbeat proves the instrument is alive, and only the method clock proves the r
   ends only when it falls back under half the threshold, so a fast ramp counts as one long swing, not many short
   ones.
 - **QUIET** fires when the status is Running and the heartbeat is arriving, but the method clock has not moved for
-  a set time. Planned pauses in healthy runs are shorter than that time.
+  a set time. Planned pauses in healthy runs are shorter than that time. It assumes a method clock that moves
+  steadily; on a system with a pre-formed gradient, such as the Evosep One, it may not apply as written.
 - **DRIFT** is a two-sided cumulative sum (Page, 1954) of each run's median deviation, measured in run-to-run
   spreads.
 
@@ -67,10 +73,20 @@ the study first ran.
 
 ## Layout
 
-- `src/QuietRun/`: the library (envelope, rules, fixed limits, simulator, CSV and JSON).
+- `src/QuietRun/`: the library.
+  - `Rules/`: one class per rule. `QuietRule`, `LeakRule`, `ClogRule` and `AirRule` implement `IRule` and see
+    every sample of one run; `DriftRule` implements `ISequenceRule` and sees each finished run. `RuleSet` builds
+    them from an envelope and a setting.
+  - `RunMonitor` asks whatever `IRule`s it is given on each sample and lets each kind fire once a run.
+    `SequenceMonitor` does the same with `ISequenceRule`s across runs. `RunChecker` checks a whole run.
+  - `ISampleSource` is where a run comes from: `CsvSource` or `SimulatedSource`.
+  - `SampleWindow` is the 15-second smoothing window, measured by timestamps, on a `RingBuffer`.
+  - `Envelope`, `FixedLimits`, `Simulator` and `TraceCsv` are the envelope, the fixed-limit baseline, the
+    synthetic runs and the file formats.
 - `src/QuietRun.Cli/`: the command-line tool, including the study that writes the page data.
 - `tests/QuietRun.Tests/`: xUnit tests, one file per verdict. Each rule has a test showing the same run is not
-  flagged when that rule is switched off.
+  flagged when that rule is switched off. `TimingTests` feed the monitor jittered, lost and unevenly spaced
+  readings; `CompositionTests` and `WindowTests` cover the rule interface, the sources and the window.
 - `docs/`: the page. `data.js` and `tests.js` are generated; do not edit them by hand.
 - `samples/`: one synthetic run per verdict and the envelope they are checked against.
 
