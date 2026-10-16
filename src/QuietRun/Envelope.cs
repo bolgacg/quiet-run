@@ -7,8 +7,8 @@ namespace QuietRun;
 /// </summary>
 public sealed class Envelope
 {
-    /// <summary>Samples in the smoothing window (one sample per second).</summary>
-    public const int SmoothWindow = 15;
+    /// <summary>Length of the smoothing window in seconds, by the samples' timestamps.</summary>
+    public const double SmoothSeconds = 15;
 
     public double BinSeconds { get; init; } = 10;
 
@@ -39,20 +39,17 @@ public sealed class Envelope
     }
 
     /// <summary>
-    /// Smoothed pressure for every sample once the window is full, paired with the method position at the
-    /// centre of the window, so the comparison is not biased by the smoothing delay.
+    /// Smoothed pressure for every sample once the window is ready, paired with the method position at the
+    /// middle of the window, so the comparison is not biased by the smoothing delay.
     /// </summary>
     public static IEnumerable<(Sample Sample, double Smoothed, double CentreMethodS)> Smooth(IEnumerable<Sample> run)
     {
-        var med = new RollingMedian(SmoothWindow);
-        var methodQ = new Queue<double>();
+        var window = new SampleWindow(SmoothSeconds);
         foreach (var s in run)
         {
-            double sm = med.Push(s.Pressure);
-            methodQ.Enqueue(s.MethodS);
-            if (methodQ.Count > SmoothWindow) methodQ.Dequeue();
-            if (!med.Full) continue;
-            yield return (s, sm, methodQ.ElementAt(SmoothWindow / 2));
+            window.Push(s);
+            if (!window.Ready) continue;
+            yield return (s, window.MedianPressure(), window.CentreMethodS());
         }
     }
 

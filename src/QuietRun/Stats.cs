@@ -1,6 +1,6 @@
 namespace QuietRun;
 
-/// <summary>Small statistics helpers. Nothing here allocates per sample except the rolling median.</summary>
+/// <summary>Small statistics helpers, used on whole runs, not per sample.</summary>
 public static class Stats
 {
     public static double Median(IReadOnlyList<double> xs)
@@ -48,33 +48,5 @@ public static class Stats
         double pos = p * (a.Length - 1);
         int lo = (int)Math.Floor(pos), hi = (int)Math.Ceiling(pos);
         return a[lo] + (a[hi] - a[lo]) * (pos - lo);
-    }
-}
-
-/// <summary>Median of the last N values pushed. N is small (15), so a sort per push is cheap.</summary>
-public sealed class RollingMedian
-{
-    private readonly int _window;
-    private readonly Queue<double> _q = new();
-    private readonly double[] _buf;
-
-    public RollingMedian(int window)
-    {
-        if (window < 1) throw new ArgumentOutOfRangeException(nameof(window));
-        _window = window;
-        _buf = new double[window];
-    }
-
-    public int Count => _q.Count;
-    public bool Full => _q.Count == _window;
-
-    public double Push(double x)
-    {
-        _q.Enqueue(x);
-        if (_q.Count > _window) _q.Dequeue();
-        int n = 0;
-        foreach (var v in _q) _buf[n++] = v;
-        Array.Sort(_buf, 0, n);
-        return n % 2 == 1 ? _buf[n / 2] : 0.5 * (_buf[n / 2 - 1] + _buf[n / 2]);
     }
 }

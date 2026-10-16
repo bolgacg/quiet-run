@@ -8,7 +8,8 @@ namespace QuietRun.Cli;
 public static class TestList
 {
     private static readonly string[] Order =
-        ["LeakTests", "ClogTests", "AirTests", "QuietTests", "DriftTests", "HealthyTests", "EnvelopeTests", "CsvAndSimulatorTests"];
+        ["LeakTests", "ClogTests", "AirTests", "QuietTests", "DriftTests", "HealthyTests", "TimingTests", "CompositionTests",
+         "WindowTests", "EnvelopeTests", "CsvAndSimulatorTests"];
 
     public static int Run(string trxPath, string outPath)
     {

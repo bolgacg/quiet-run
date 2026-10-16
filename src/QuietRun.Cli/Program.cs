@@ -37,7 +37,8 @@ namespace QuietRun.Cli
               tests <results.trx> --out <docs/tests.js>
                   Turns a dotnet test TRX file into the test list the page shows.
 
-            CSV header: t_s,pressure,flow,status,heartbeat,method_s (one row per second).
+            CSV header: t_s,pressure,flow,status,heartbeat,method_s (one row per reading).
+            Rows need not be evenly spaced; every rule measures time from t_s, which must increase.
             """;
 
         public static int Run(string[] args)
@@ -109,12 +110,12 @@ namespace QuietRun.Cli
             var files = args.Where(a => !a.StartsWith("--")).ToList();
             if (files.Count == 0) throw new ArgumentException("check needs at least one run CSV.");
             var env = TraceCsv.ReadEnvelope(envPath);
-            var drift = new DriftMonitor(env, setting);
+            var sequence = new SequenceMonitor(env, setting);
             int flagged = 0;
-            foreach (var f in files)
+            foreach (var source in files.Select(f => new CsvSource(f)))
             {
-                var report = RunChecker.Check(TraceCsv.Read(f), env, setting, drift);
-                Console.Write(Format(Path.GetFileName(f), report));
+                var report = RunChecker.Check(source, env, setting, sequence);
+                Console.Write(Format(source.Name, report));
                 if (report.Verdict != Verdict.Ok) flagged++;
             }
             return flagged > 0 ? 3 : 0;

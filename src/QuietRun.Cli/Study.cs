@@ -60,7 +60,7 @@ public static class Study
         object? healthyExample = null, healthyFlaggedExample = null;
         for (int q = 0; q < HealthySequences; q++)
         {
-            var drifts = settings.Select(s => new DriftMonitor(env, s)).ToArray();
+            var drifts = settings.Select(s => new SequenceMonitor(env, s)).ToArray();
             for (int i = 0; i < SequenceRuns; i++)
             {
                 int rs = hrng.Next();
@@ -179,7 +179,7 @@ public static class Study
             var plans = new List<List<(int Seed, double Off, double Creep)>>();
             for (int rep = 0; rep < Reps; rep++)
             {
-                var drifts = settings.Select(s => new DriftMonitor(env, s)).ToArray();
+                var drifts = settings.Select(s => new SequenceMonitor(env, s)).ToArray();
                 var first = new Outcome?[settings.Count];
                 var early = new bool[settings.Count];
                 Outcome? fixedFirst = null;
@@ -240,7 +240,7 @@ public static class Study
 
         object DriftExample(List<(int Seed, double Off, double Creep)> plan, int sev, double size, int pick)
         {
-            var drifts = settings.Select(s => new DriftMonitor(env, s)).ToArray();
+            var drifts = settings.Select(s => new SequenceMonitor(env, s)).ToArray();
             var medians = new List<double>();
             var fixedRuns = new List<bool>();
             var firstAlarm = settings.ToDictionary(s => s.Name, _ => (object?)null);
@@ -278,7 +278,7 @@ public static class Study
                 trace = TraceJson(shown),
                 alarms = settings.ToDictionary(s => s.Name, s =>
                 {
-                    var d = new DriftMonitor(env, s);
+                    var d = new SequenceMonitor(env, s);
                     RunReport? rep0 = null;
                     for (int i = 0; i <= show; i++)
                         rep0 = RunChecker.Check(i == show ? shown : Simulator.Run(plan[i].Seed, plan[i].Off, null, plan[i].Creep), env, s, d);
@@ -307,8 +307,8 @@ public static class Study
                 clogRampS = Simulator.ClogRampS,
                 airBurstS = Simulator.AirBurstS,
                 airDips = Simulator.AirDips,
-                smoothWindowS = Envelope.SmoothWindow,
-                fixedDebounceS = FixedLimits.Debounce,
+                smoothWindowS = Envelope.SmoothSeconds,
+                fixedDebounceS = FixedLimits.DebounceS,
                 fixedMarginIndex = FixedLimits.DefaultMargin,
                 pauseMaxS = Simulator.PauseMaxS,
                 severitySizes = Simulator.Severities.ToDictionary(kv => K(kv.Key), kv => kv.Value.Select(x => double.IsInfinity(x) ? (double?)null : x).ToList()),

@@ -7,7 +7,7 @@ namespace QuietRun;
 /// <summary>
 /// Reads and writes run traces as CSV with the header
 /// t_s,pressure,flow,status,heartbeat,method_s
-/// and envelopes as JSON.
+/// and envelopes as JSON. Rows need not be evenly spaced in time, but t_s must increase from row to row.
 /// </summary>
 public static class TraceCsv
 {
@@ -19,7 +19,7 @@ public static class TraceCsv
         var sb = new StringBuilder();
         sb.Append(Header).Append('\n');
         foreach (var s in run)
-            sb.Append(string.Format(Inv, "{0:0},{1:0.000},{2:0.000},{3},{4},{5:0}\n",
+            sb.Append(string.Format(Inv, "{0:0.###},{1:0.000},{2:0.000},{3},{4},{5:0.###}\n",
                 s.T, s.Pressure, s.Flow, s.Status == InstrumentStatus.Running ? "Running" : "Idle", s.Heartbeat, s.MethodS));
         File.WriteAllText(path, sb.ToString());
     }
@@ -48,20 +48,26 @@ public static class TraceCsv
             if (f.Length != cols.Length)
                 throw new TraceFormatException($"{source} line {lineNo}: expected {cols.Length} fields, found {f.Length}.");
             string Get(string name) => f[Array.IndexOf(cols, name)].Trim();
+            Sample sample;
             try
             {
-                result.Add(new Sample(
+                sample = new Sample(
                     double.Parse(Get("t_s"), Inv),
                     double.Parse(Get("pressure"), Inv),
                     double.Parse(Get("flow"), Inv),
                     Get("status").Equals("Running", StringComparison.OrdinalIgnoreCase) ? InstrumentStatus.Running : InstrumentStatus.Idle,
                     long.Parse(Get("heartbeat"), Inv),
-                    double.Parse(Get("method_s"), Inv)));
+                    double.Parse(Get("method_s"), Inv));
             }
             catch (System.FormatException e)
             {
                 throw new TraceFormatException($"{source} line {lineNo}: {e.Message}");
             }
+            if (result.Count > 0 && !(sample.T > result[^1].T))
+                throw new TraceFormatException(string.Format(Inv,
+                    "{0} line {1}: t_s {2} is not after the previous row's {3}. Rows must be in time order.",
+                    source, lineNo, sample.T, result[^1].T));
+            result.Add(sample);
         }
         return result;
     }

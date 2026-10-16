@@ -9,7 +9,7 @@ public class DriftTests
     private static List<RunReport> Sequence(double perRun, int seed, DetectorSettings? settings = null)
     {
         var s = settings ?? DetectorSettings.Chosen;
-        var drift = new DriftMonitor(Trained.Envelope, s);
+        var drift = new SequenceMonitor(Trained.Envelope, s);
         var rng = new Random(seed);
         var reports = new List<RunReport>();
         for (int i = 0; i < 20; i++)
@@ -25,7 +25,7 @@ public class DriftTests
     public void A_clean_trend_of_half_a_percent_per_run_is_DRIFT_before_any_single_run_trips_CLOG()
     {
         var env = Trained.Envelope;
-        var drift = new DriftMonitor(env, DetectorSettings.Chosen);
+        var drift = new SequenceMonitor(env, DetectorSettings.Chosen);
         var reports = new List<RunReport>();
         for (int i = 0; i < 20; i++)
         {
@@ -52,19 +52,19 @@ public class DriftTests
     public void One_unusual_run_is_not_a_trend()
     {
         var env = Trained.Envelope;
-        var m = new DriftMonitor(env, DetectorSettings.Chosen);
+        var m = new SequenceMonitor(env, DetectorSettings.Chosen);
         foreach (var z in new[] { 0.0, 0.0, 3.0, 0.0, 0.0, 0.0 })
-            Assert.Null(m.AddRun(z * env.RunSigma, 1260));
+            Assert.Empty(m.AddRun(new RunSummary(z * env.RunSigma, 1260)));
     }
 
     [Fact]
     public void A_steady_step_of_one_run_spread_is_flagged_within_eleven_runs()
     {
         var env = Trained.Envelope;
-        var m = new DriftMonitor(env, DetectorSettings.Chosen);
+        var m = new SequenceMonitor(env, DetectorSettings.Chosen);
         int? firedAt = null;
         for (int i = 1; i <= 11 && firedAt is null; i++)
-            if (m.AddRun(1.0 * env.RunSigma, 1260) is not null) firedAt = i;
+            if (m.AddRun(new RunSummary(1.0 * env.RunSigma, 1260)).Count > 0) firedAt = i;
         Assert.NotNull(firedAt);
     }
 
@@ -72,7 +72,7 @@ public class DriftTests
     public void A_flat_sequence_is_never_DRIFT()
     {
         var env = Trained.Envelope;
-        var drift = new DriftMonitor(env, DetectorSettings.Chosen);
+        var drift = new SequenceMonitor(env, DetectorSettings.Chosen);
         for (int i = 0; i < 20; i++)
         {
             var report = RunChecker.Check(Simulator.Run(600 + i, runOffset: 0), env, DetectorSettings.Chosen, drift);

@@ -44,6 +44,30 @@ public class CsvAndSimulatorTests
     }
 
     [Fact]
+    public void A_CSV_whose_timestamps_go_backwards_is_refused_with_the_line_number()
+    {
+        var lines = new[] { TraceCsv.Header, "0,100,100,Running,1,0", "2,100,100,Running,2,1", "1,100,100,Running,3,2" };
+        var e = Assert.Throws<TraceFormatException>(() => TraceCsv.Parse(lines));
+        Assert.Contains("line 4", e.Message);
+        Assert.Contains("time order", e.Message);
+    }
+
+    [Fact]
+    public void Uneven_timestamps_survive_a_round_trip_through_CSV()
+    {
+        var run = Resample.Jitter(Simulator.Run(905, 0), 0.3, seed: 13);
+        var path = Path.Combine(Path.GetTempPath(), $"quiet-run-{Guid.NewGuid():N}.csv");
+        try
+        {
+            TraceCsv.Write(path, run);
+            var back = TraceCsv.Read(path);
+            Assert.Equal(run.Count, back.Count);
+            for (int i = 0; i < run.Count; i++) Assert.Equal(run[i].T, back[i].T, 3);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public void An_envelope_survives_a_round_trip_through_JSON()
     {
         var path = Path.Combine(Path.GetTempPath(), $"quiet-run-{Guid.NewGuid():N}.json");

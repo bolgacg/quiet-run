@@ -4,7 +4,8 @@ namespace QuietRun;
 public enum InstrumentStatus { Idle, Running }
 
 /// <summary>
-/// One reading from the instrument, taken once per second.
+/// One reading from the instrument. Readings need not be evenly spaced: every rule measures time and rates from
+/// T, which must increase from one reading to the next. The simulator writes one reading a second.
 /// Pressure and flow are indexes, not physical units: 100 means the healthy average for this method
 /// (pressure) or the set flow (flow).
 /// </summary>
@@ -27,6 +28,11 @@ public enum Verdict { Ok, Leak, Clog, Air, Drift, Quiet }
 
 /// <summary>One rule firing: what it decided, when, and why in plain English.</summary>
 public sealed record Alarm(Verdict Kind, double T, string Reason);
+
+/// <summary>What the cross-run rules learn from one finished run.</summary>
+/// <param name="MedianDeviation">The run's median pressure deviation from its envelope, as a fraction.</param>
+/// <param name="EndT">The timestamp of the run's last sample.</param>
+public sealed record RunSummary(double MedianDeviation, double EndT);
 
 /// <summary>The result of checking one run.</summary>
 /// <param name="Verdict">The first rule that fired, or Ok.</param>

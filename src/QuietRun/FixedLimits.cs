@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace QuietRun;
 
 /// <summary>
@@ -7,8 +9,14 @@ namespace QuietRun;
 /// </summary>
 public sealed record FixedLimits(double Low, double High)
 {
-    /// <summary>Samples in a row that must sit outside a limit before it trips.</summary>
-    public const int Debounce = 3;
+    /// <summary>
+    /// Seconds the pressure must stay past a limit, by the samples' timestamps, before it trips. At one sample a
+    /// second that is three samples in a row.
+    /// </summary>
+    public const double DebounceS = 2;
+
+    /// <summary>Seconds of the median used to find the healthy extremes when learning the limits.</summary>
+    public const double LearnSmoothS = 5;
 
     /// <summary>How far outside the healthy extremes the limits sit, in index points.</summary>
     public const double DefaultMargin = 2.0;
@@ -18,11 +26,12 @@ public sealed record FixedLimits(double Low, double High)
         double lo = double.MaxValue, hi = double.MinValue;
         foreach (var run in healthyRuns)
         {
-            var med = new RollingMedian(5);
+            var window = new SampleWindow(LearnSmoothS);
             foreach (var s in run)
             {
-                double m = med.Push(s.Pressure);
-                if (!med.Full) continue;
+                window.Push(s);
+                if (!window.Ready) continue;
+                double m = window.MedianPressure();
                 lo = Math.Min(lo, m);
                 hi = Math.Max(hi, m);
             }
@@ -34,8 +43,9 @@ public sealed record FixedLimits(double Low, double High)
 /// <summary>Runs the fixed limits over a run, sample by sample. Fires once.</summary>
 public sealed class FixedLimitMonitor
 {
+    private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
     private readonly FixedLimits _limits;
-    private int _below, _above;
+    private double _belowSince = double.NaN, _aboveSince = double.NaN;
 
     public FixedLimitMonitor(FixedLimits limits) => _limits = limits;
 
@@ -44,14 +54,14 @@ public sealed class FixedLimitMonitor
     public Alarm? Push(Sample s)
     {
         if (Fired is not null || s.Status != InstrumentStatus.Running) return null;
-        _below = s.Pressure < _limits.Low ? _below + 1 : 0;
-        _above = s.Pressure > _limits.High ? _above + 1 : 0;
-        if (_below >= FixedLimits.Debounce)
-            Fired = new Alarm(Verdict.Leak, s.T,
-                $"Pressure {s.Pressure:0.0} has been under the fixed low limit of {_limits.Low:0.0} for {FixedLimits.Debounce} s.");
-        else if (_above >= FixedLimits.Debounce)
-            Fired = new Alarm(Verdict.Clog, s.T,
-                $"Pressure {s.Pressure:0.0} has been over the fixed high limit of {_limits.High:0.0} for {FixedLimits.Debounce} s.");
+        _belowSince = s.Pressure < _limits.Low ? (double.IsNaN(_belowSince) ? s.T : _belowSince) : double.NaN;
+        _aboveSince = s.Pressure > _limits.High ? (double.IsNaN(_aboveSince) ? s.T : _aboveSince) : double.NaN;
+        if (s.T - _belowSince >= FixedLimits.DebounceS)
+            Fired = new Alarm(Verdict.Leak, s.T, string.Format(Inv,
+                "Pressure {0:0.0} has been under the fixed low limit of {1:0.0} for {2:0} s.", s.Pressure, _limits.Low, s.T - _belowSince));
+        else if (s.T - _aboveSince >= FixedLimits.DebounceS)
+            Fired = new Alarm(Verdict.Clog, s.T, string.Format(Inv,
+                "Pressure {0:0.0} has been over the fixed high limit of {1:0.0} for {2:0} s.", s.Pressure, _limits.High, s.T - _aboveSince));
         return Fired;
     }
 
